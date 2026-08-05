@@ -25,3 +25,6 @@ dist/
 .vscode/
 .DS_Store
 *.swp
+
+# Personal/local documentation — never pushed
+docs-local/

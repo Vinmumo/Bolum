@@ -102,6 +102,9 @@ class PredictionResult:
     prob_under_2_5: float
     prob_btts: float
     top_scorelines: list[Scoreline]
+    # Over probabilities for each goal line, e.g. {"1.5": 0.78, "2.5": 0.54, "3.5": 0.31}.
+    over_lines: dict[str, float] = field(default_factory=dict)
+    expected_total_goals: float = 0.0
 
     def as_dict(self) -> dict:
         return {
@@ -113,6 +116,8 @@ class PredictionResult:
             "prob_over_2_5": round(self.prob_over_2_5, 4),
             "prob_under_2_5": round(self.prob_under_2_5, 4),
             "prob_btts": round(self.prob_btts, 4),
+            "over_lines": {k: round(v, 4) for k, v in self.over_lines.items()},
+            "expected_total_goals": round(self.expected_total_goals, 2),
             "top_scorelines": [
                 {"home": s.home, "away": s.away, "probability": round(s.probability, 4)}
                 for s in self.top_scorelines
@@ -178,15 +183,51 @@ def poisson_pmf(k: int, lam: float) -> float:
     return math.exp(-lam) * lam**k / math.factorial(k)
 
 
-def score_matrix(xg_home: float, xg_away: float, max_goals: int = MAX_GOALS) -> list[list[float]]:
+# Dixon-Coles low-score correlation. Independent Poisson systematically
+# underestimates 0-0 / 1-1 and overestimates 1-0 / 0-1; the tau adjustment
+# fixes exactly those four cells. rho < 0 boosts the draws. Typical fitted
+# values for top leagues sit around -0.05..-0.15; we default to a conservative
+# -0.10 rather than fitting per-league. See docs/MODEL_NOTES.md.
+DIXON_COLES_RHO = -0.10
+
+
+def _dc_tau(i: int, j: int, lam: float, mu: float, rho: float) -> float:
+    if i == 0 and j == 0:
+        return 1.0 - lam * mu * rho
+    if i == 0 and j == 1:
+        return 1.0 + lam * rho
+    if i == 1 and j == 0:
+        return 1.0 + mu * rho
+    if i == 1 and j == 1:
+        return 1.0 - rho
+    return 1.0
+
+
+def score_matrix(
+    xg_home: float,
+    xg_away: float,
+    max_goals: int = MAX_GOALS,
+    rho: float = DIXON_COLES_RHO,
+) -> list[list[float]]:
     home_probs = [poisson_pmf(i, xg_home) for i in range(max_goals + 1)]
     away_probs = [poisson_pmf(j, xg_away) for j in range(max_goals + 1)]
-    return [[hp * ap for ap in away_probs] for hp in home_probs]
+    matrix = [[hp * ap for ap in away_probs] for hp in home_probs]
+    if rho:
+        for i in (0, 1):
+            for j in (0, 1):
+                matrix[i][j] *= max(0.0, _dc_tau(i, j, xg_home, xg_away, rho))
+    return matrix
+
+
+# Goal lines the model reports over/under probabilities for.
+GOAL_LINES: tuple[float, ...] = (1.5, 2.5, 3.5)
 
 
 def summarise_matrix(matrix: list[list[float]], top_n: int = 4) -> dict:
     p_home, p_draw, p_away = 0.0, 0.0, 0.0
-    p_over, p_btts = 0.0, 0.0
+    p_btts = 0.0
+    p_over_line = {line: 0.0 for line in GOAL_LINES}
+    expected_total = 0.0
     scorelines: list[Scoreline] = []
 
     for i, row in enumerate(matrix):
@@ -197,21 +238,26 @@ def summarise_matrix(matrix: list[list[float]], top_n: int = 4) -> dict:
                 p_draw += p
             else:
                 p_away += p
-            if i + j > 2:  # over 2.5
-                p_over += p
+            for line in GOAL_LINES:
+                if i + j > line:
+                    p_over_line[line] += p
             if i > 0 and j > 0:
                 p_btts += p
+            expected_total += (i + j) * p
             scorelines.append(Scoreline(home=i, away=j, probability=p))
 
     total = p_home + p_draw + p_away or 1.0  # normalise away truncation loss
     scorelines.sort(key=lambda s: s.probability, reverse=True)
+    over_lines = {f"{line}": p_over_line[line] / total for line in GOAL_LINES}
     return {
         "prob_home_win": p_home / total,
         "prob_draw": p_draw / total,
         "prob_away_win": p_away / total,
-        "prob_over_2_5": p_over / total,
-        "prob_under_2_5": 1.0 - p_over / total,
+        "prob_over_2_5": over_lines["2.5"],
+        "prob_under_2_5": 1.0 - over_lines["2.5"],
         "prob_btts": p_btts / total,
+        "over_lines": over_lines,
+        "expected_total_goals": expected_total / total,
         "top_scorelines": scorelines[:top_n],
     }
 
@@ -232,6 +278,8 @@ def predict_from_xg(xg_home: float, xg_away: float, top_n: int = 4) -> Predictio
         prob_over_2_5=summary["prob_over_2_5"],
         prob_under_2_5=summary["prob_under_2_5"],
         prob_btts=summary["prob_btts"],
+        over_lines=summary["over_lines"],
+        expected_total_goals=summary["expected_total_goals"],
         top_scorelines=summary["top_scorelines"],
     )
 

@@ -4,6 +4,7 @@ Run:  uvicorn app.main:app --reload   (from the backend/ directory)
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -26,8 +27,15 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         seed_defaults(db)
+    task = None
+    if settings.auto_backtest_enabled:
+        from app.services.auto_backtest import auto_backtest_loop
+
+        task = asyncio.create_task(auto_backtest_loop())
     logger.info("Startup complete (env=%s).", settings.environment)
     yield
+    if task is not None:
+        task.cancel()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
@@ -41,12 +49,22 @@ app.add_middleware(
 )
 
 # Routers
-from app.api.routers import admin, fixtures, leagues, predictions, teams  # noqa: E402
+from app.api.routers import (  # noqa: E402
+    admin,
+    backtest,
+    fixtures,
+    leagues,
+    odds,
+    predictions,
+    teams,
+)
 
 app.include_router(predictions.router)
 app.include_router(fixtures.router)
 app.include_router(leagues.router)
 app.include_router(teams.router)
+app.include_router(backtest.router)
+app.include_router(odds.router)
 app.include_router(admin.router)
 
 

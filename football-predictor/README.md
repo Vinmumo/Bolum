@@ -1,74 +1,75 @@
-# ⚽ Football Predictor
+# ⚽ Bolum — Football Predictor
 
-A personal tool to analyse football fixtures with a **Poisson-based** model —
-win/draw/loss, over/under 2.5, BTTS, and likely scorelines. Starts with the
-Premier League via [API-Football](https://www.api-football.com/), but leagues and
-data providers are **configurable at runtime**, not hardcoded.
+A personal football analysis tool. Bolum predicts fixtures with a
+**Poisson + Dixon-Coles** model, pulls data from **multiple football APIs at
+once** (weighted consensus), compares its overs/unders against **live bookmaker
+odds**, and — most importantly — **backtests itself** against past seasons using
+only the data that was available at the time.
 
-**Multi-source consensus:** enable more than one data API and every prediction
-becomes the **average** of all of them, with each source's own numbers shown side
-by side so you can see where they agree. Adapters included: API-Football and
-football-data.org (both free to develop with); Sportmonks and Sportradar are
-scaffolded. See [docs/ADDING_A_PROVIDER.md](docs/ADDING_A_PROVIDER.md) for keys +
-how the averaging works.
+> For analysis and curiosity only — **not betting advice**.
 
-> Runs fully **offline out of the box** with canned Premier League data — add an
-> API-Football key when you're ready for live data.
+![stack](https://img.shields.io/badge/backend-FastAPI-009688) ![stack](https://img.shields.io/badge/frontend-Vue_3-42b883) ![stack](https://img.shields.io/badge/db-SQLite%E2%86%92Postgres-informational) ![stack](https://img.shields.io/badge/model-Poisson_%2B_Dixon--Coles-8b5cf6)
 
-![stack](https://img.shields.io/badge/backend-FastAPI-009688) ![stack](https://img.shields.io/badge/frontend-Vue_3-42b883) ![stack](https://img.shields.io/badge/db-SQLite%E2%86%92Postgres-informational)
+## What it does
+
+- **Upcoming season front and centre** — landing page leads with the current
+  season's gameweek calendar and countdown to kick-off.
+- **Fixture predictions** — expected goals, win/draw/loss meter, overs/unders at
+  **1.5 / 2.5 / 3.5**, BTTS, likely scorelines, recent form and head-to-head.
+- **Multi-API consensus** — every *active* data provider contributes; the
+  headline is a **weighted average** with each source's own numbers shown side
+  by side. Adding a provider is an admin-UI action, not a redeploy.
+- **Model vs market** — with a (free) The Odds API key, each fixture shows the
+  bookmakers' implied over/under probabilities next to the model's, with the
+  edge per goal line.
+- **Honest backtesting** — replay any past gameweek and see what Bolum *would
+  have* predicted using only the league table as it stood back then. Hit rates
+  and calibration accumulate per season; finished gameweeks replay
+  automatically in the background.
+- **Past seasons** — final tables plus the backtest dashboard, back to 2021.
 
 ## Quick start
 
-Two terminals. **Python 3.11+ recommended** (works on 3.10).
+Two terminals. Python 3.10+ (3.11+ recommended) and Node 18+.
 
-### 1. Backend
+**Terminal 1 — backend** (http://127.0.0.1:8000, API docs at `/docs`):
 
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# env
-cp ../.env.example .env          # then edit .env (SECRET_KEY, ADMIN_PASSWORD…)
-
-# run (dev: tables auto-create + defaults seed on startup)
-uvicorn app.main:app --reload    # → http://127.0.0.1:8000  (docs at /docs)
+cp ../.env.example .env        # then fill in keys — see below
+uvicorn app.main:app --reload
 ```
 
-Leave `API_FOOTBALL_KEY` blank in `.env` to use offline **sample mode**. Add a
-key later and switch the active provider in the admin UI.
-
-### 2. Frontend
+**Terminal 2 — frontend** (http://localhost:5173, proxies `/api` to the backend):
 
 ```bash
 cd frontend
 npm install
-npm run dev                       # → http://localhost:5173  (proxies /api → :8000)
+npm run dev
 ```
 
-Open **http://localhost:5173** — the dashboard shows the gameweek; click a
-fixture for the full breakdown. Admin is at **/admin** (log in with the
-`ADMIN_USERNAME` / `ADMIN_PASSWORD` from `.env`).
+The admin area is at **/admin** (credentials from `.env`).
 
-### Docker (optional)
+## API keys (all free tiers)
 
-```bash
-docker compose up --build         # backend :8000, frontend :5173
-```
+| Key | Get it at | Powers |
+|---|---|---|
+| `API_FOOTBALL_KEY` | [api-football.com](https://www.api-football.com/) | consensus source (historical seasons on free tier) |
+| football-data.org token | [football-data.org/client/register](https://www.football-data.org/client/register) | **primary source** — current-season fixtures, standings, backtests. Added via the admin UI, stored encrypted |
+| `THE_ODDS_API_KEY` | [the-odds-api.com](https://theoddsapi.com/) | bookmaker over/under lines (optional — panel hides without it) |
 
-## What's where
+No key at all? Enable the built-in `sample` provider in admin and everything
+runs offline with canned data.
 
-```
-backend/     FastAPI app, Poisson model, provider adapters, admin API
-frontend/    Vue 3 + Vite + Pinia + Tailwind (public dashboard + admin)
-docs/        Developer docs (read these) ↓
-```
+## Docs (developer)
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the pieces fit together
-- [docs/ADDING_A_PROVIDER.md](docs/ADDING_A_PROVIDER.md) — plug in a new data API
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the pieces fit, provider roles/priority
+- [docs/MODEL_NOTES.md](docs/MODEL_NOTES.md) — the Poisson/Dixon-Coles maths, consensus weights, backtest honesty rules
+- [docs/ADDING_A_PROVIDER.md](docs/ADDING_A_PROVIDER.md) — plug in a new data API (+ free-tier gotchas)
 - [docs/ADDING_A_LEAGUE.md](docs/ADDING_A_LEAGUE.md) — enable La Liga, Serie A, …
-- [docs/MODEL_NOTES.md](docs/MODEL_NOTES.md) — the Poisson approach & why the weights
-- [backend/README.md](backend/README.md) — backend dev notes (migrations, tests)
+- [backend/README.md](backend/README.md) — migrations, tests, backend layout
 
 ## Tests
 
@@ -78,6 +79,7 @@ cd backend && source .venv/bin/activate && pytest
 
 ## Notes
 
-- For analysis only — **not betting advice**.
-- API keys are stored **encrypted at rest** and never logged in full. `.env` is
-  gitignored; never commit real keys.
+- Secrets live in `.env` (gitignored) or encrypted in the DB — never in source.
+- SQLite for dev; point `DATABASE_URL` at Postgres to swap — no code changes.
+- Free-tier rate limits are respected via caching (stats 6h / fixtures 1h) and
+  per-provider throttling; watch consumption in **Admin → Usage**.

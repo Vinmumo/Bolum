@@ -93,3 +93,25 @@ def test_league_averages_from_teams_falls_back_when_empty():
     la = pm.league_averages_from_teams([])
     assert la.avg_home_goals == pm.DEFAULT_AVG_HOME_GOALS
     assert la.avg_away_goals == pm.DEFAULT_AVG_AWAY_GOALS
+
+
+def test_dixon_coles_boosts_low_draws_dampens_low_wins():
+    plain = score_matrix(1.4, 1.1, rho=0.0)
+    dc = score_matrix(1.4, 1.1)  # default negative rho
+    plain_total = sum(sum(r) for r in plain)
+    dc_total = sum(sum(r) for r in dc)
+    # Normalised cell comparisons: 0-0 and 1-1 up, 1-0 and 0-1 down.
+    assert dc[0][0] / dc_total > plain[0][0] / plain_total
+    assert dc[1][1] / dc_total > plain[1][1] / plain_total
+    assert dc[1][0] / dc_total < plain[1][0] / plain_total
+    assert dc[0][1] / dc_total < plain[0][1] / plain_total
+
+
+def test_dixon_coles_probabilities_still_normalised():
+    s = summarise_matrix(score_matrix(1.6, 1.2))
+    assert math.isclose(
+        s["prob_home_win"] + s["prob_draw"] + s["prob_away_win"], 1.0, abs_tol=1e-6
+    )
+    # draws should be a bit likelier than under plain Poisson
+    s_plain = summarise_matrix(score_matrix(1.6, 1.2, rho=0.0))
+    assert s["prob_draw"] > s_plain["prob_draw"]

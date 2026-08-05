@@ -11,6 +11,8 @@ class ProviderCreate(BaseModel):
     auth_header: str = "x-apisports-key"
     api_key: str | None = Field(None, description="Stored encrypted; never returned.")
     active: bool = True
+    priority: int = Field(100, description="Lower = preferred; lowest active serves fixtures.")
+    weight: float = Field(1.0, description="Consensus weight; 1.0 = equal say.")
 
 
 class ProviderUpdate(BaseModel):
@@ -20,6 +22,8 @@ class ProviderUpdate(BaseModel):
     auth_header: str | None = None
     api_key: str | None = Field(None, description="Send to rotate the key.")
     active: bool | None = None
+    priority: int | None = None
+    weight: float | None = None
 
 
 class ProviderOut(BaseModel):
@@ -31,5 +35,7 @@ class ProviderOut(BaseModel):
     api_key_masked: str  # e.g. "********abcd" — never the full key
     has_key: bool
     active: bool
+    priority: int
+    weight: float
 
     model_config = {"from_attributes": True}

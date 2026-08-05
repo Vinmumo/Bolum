@@ -17,6 +17,11 @@ const routes = [
         name: "fixture",
         component: () => import("../views/FixtureDetailView.vue"),
       },
+      {
+        path: "season/:year(\\d+)",
+        name: "season",
+        component: () => import("../views/SeasonView.vue"),
+      },
     ],
   },
   {

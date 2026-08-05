@@ -85,7 +85,7 @@ class ProviderRegistry:
         makes no sense — this is the "primary" provider.
         """
         row = self.db.execute(
-            select(Provider).where(Provider.active.is_(True)).order_by(Provider.id)
+            select(Provider).where(Provider.active.is_(True)).order_by(Provider.priority, Provider.id)
         ).scalars().first()
         if row is None:
             raise ProviderError(
@@ -93,20 +93,20 @@ class ProviderRegistry:
             )
         return self._build(row)
 
-    def get_active_providers(self) -> list[tuple[str, FootballDataProvider]]:
-        """All active providers as (name, instance), ordered by id.
+    def get_active_providers(self) -> list[tuple[str, FootballDataProvider, float]]:
+        """All active providers as (name, instance, weight), by priority.
 
-        The predictor runs across every one of these and averages the results
-        (consensus). Raises if none are enabled.
+        The predictor runs across every one of these and takes a weighted
+        average (consensus). Raises if none are enabled.
         """
         rows = self.db.execute(
-            select(Provider).where(Provider.active.is_(True)).order_by(Provider.id)
+            select(Provider).where(Provider.active.is_(True)).order_by(Provider.priority, Provider.id)
         ).scalars().all()
         if not rows:
             raise ProviderError(
                 "No active data provider configured. Add one in the admin page."
             )
-        return [(row.name, self._build(row)) for row in rows]
+        return [(row.name, self._build(row), row.weight or 1.0) for row in rows]
 
     def get_provider_by_id(self, provider_id: int) -> FootballDataProvider:
         row = self.db.get(Provider, provider_id)

@@ -24,7 +24,7 @@ const PROVIDER_DEFAULTS = {
 
 const blankProvider = () => ({
   name: "", provider_type: "api_football", base_url: "https://v3.football.api-sports.io",
-  auth_header: "x-apisports-key", api_key: "", active: true,
+  auth_header: "x-apisports-key", api_key: "", active: true, priority: 100, weight: 1.0,
 });
 const blankLeague = () => ({ name: "", country: "", external_provider_id: 39, season: 2023, active: true });
 
@@ -141,6 +141,14 @@ async function deleteLeague(l) {
             <input v-model="providerForm.api_key" type="password" class="input mt-1"
               :placeholder="providerForm.id ? 'leave blank to keep current' : ''" />
           </label>
+          <label class="text-sm">Priority
+            <input v-model.number="providerForm.priority" type="number" class="input mt-1" />
+            <span class="text-xs text-ink-400">Lower = preferred. Lowest active serves fixtures/calendar.</span>
+          </label>
+          <label class="text-sm">Consensus weight
+            <input v-model.number="providerForm.weight" type="number" step="0.1" min="0" class="input mt-1" />
+            <span class="text-xs text-ink-400">Relative say in the averaged prediction (1.0 = equal).</span>
+          </label>
         </div>
         <label class="flex items-center gap-2 text-sm"><input v-model="providerForm.active" type="checkbox" /> Active</label>
         <div class="flex gap-2">
@@ -158,7 +166,7 @@ async function deleteLeague(l) {
                 {{ p.active ? "active" : "disabled" }}
               </span>
             </div>
-            <p class="text-xs text-ink-400">{{ p.provider_type }} · {{ p.base_url }} · key {{ p.has_key ? p.api_key_masked : "—" }}</p>
+            <p class="text-xs text-ink-400">{{ p.provider_type }} · priority {{ p.priority }} · weight {{ p.weight }} · {{ p.base_url }} · key {{ p.has_key ? p.api_key_masked : "—" }}</p>
           </div>
           <div class="flex gap-1">
             <button class="btn-ghost !px-2 text-xs" @click="toggleProvider(p)">{{ p.active ? "Disable" : "Enable" }}</button>

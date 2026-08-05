@@ -79,6 +79,21 @@ Single admin user; credentials in `.env`. `POST /api/admin/login` (OAuth2
 password form) returns a JWT; `require_admin` guards every `/api/admin/*` route.
 No public signup — public visitors need no account.
 
+## Provider roles (since the 2026 upgrade)
+
+- Providers have a `priority` (lower = preferred). The **lowest-priority active**
+  provider serves single-source endpoints: fixtures, calendar, seasons,
+  standings, point-in-time stats. ALL active providers feed the prediction
+  consensus.
+- **football-data.org is primary** (priority 1): its free tier carries the
+  *current* season (fixtures + standings), which API-Football's free tier does
+  not (capped at 2023 → priority 2, consensus duty for seasons it can see).
+- Early-season fallback: while the current season's table is empty, the
+  football-data adapter silently uses last season's stats for predictions.
+- Backtesting: `services/backtest.py` + `backtest_results` table + `/api/backtest/*`.
+- Odds: `services/odds.py` + `/api/odds/totals` (The Odds API, dormant without
+  `THE_ODDS_API_KEY`; league→sport-key map in `SPORT_KEYS`).
+
 ## Where state lives
 
 - **SQLite** (dev) via `DATABASE_URL` — swap to Postgres by changing that one
