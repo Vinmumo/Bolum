@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Outcome colors as RGB triplets so Tailwind's `<alpha-value>` works, and so
+   they re-step correctly between light and dark (see dataviz validation). */
+:root {
+  --c-win: 42 120 214; /* blue   #2a78d6 */
+  --c-draw: 237 161 0; /* amber  #eda100 */
+  --c-away: 232 123 164; /* magenta #e87ba4 */
+}
+.dark {
+  --c-win: 57 135 229; /* #3987e5 */
+  --c-draw: 201 133 0; /* #c98500 */
+  --c-away: 213 81 129; /* #d55181 */
+}
+
+@layer base {
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+    @apply dark:bg-ink-950 dark:text-ink-100;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-ink-200/70 bg-white shadow-card
+           dark:border-ink-800 dark:bg-ink-900;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2
+           text-sm font-semibold transition focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-brand-500/60;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700
+           dark:bg-brand-500 dark:hover:bg-brand-400 dark:text-ink-950;
+  }
+  .btn-ghost {
+    @apply btn text-ink-700 hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-ink-800;
+  }
+  .input {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm
+           text-ink-900 placeholder-ink-400 focus:border-brand-500
+           focus:outline-none focus:ring-2 focus:ring-brand-500/40
+           dark:border-ink-700 dark:bg-ink-950 dark:text-ink-100;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
+
+/* subtle skeleton shimmer for loading states */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  @apply relative overflow-hidden bg-ink-200/60 dark:bg-ink-800/60;
+}
+.skeleton::after {
+  content: "";
+  @apply absolute inset-0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+.dark .skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
+}

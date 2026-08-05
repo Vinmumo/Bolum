@@ -1,0 +1,48 @@
+# Local dev: backend (FastAPI) + frontend (Vite dev server).
+# Usage:  docker compose up --build
+# The frontend proxies /api to the backend service over the compose network.
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Override any of these; falls back to app defaults otherwise.
+      DATABASE_URL: "sqlite:///./football_predictor.db"
+      SECRET_KEY: "${SECRET_KEY:-dev-secret-change-me-in-a-real-env-0123456789}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
+      API_FOOTBALL_KEY: "${API_FOOTBALL_KEY:-}"
+      FRONTEND_ORIGIN: "http://localhost:5173"
+    volumes:
+      - ./backend:/app
+    # For Postgres instead of SQLite, uncomment the db service below, set
+    # DATABASE_URL to postgresql+psycopg://football:football@db:5432/football,
+    # and add `depends_on: [db]`.
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_TARGET: "http://backend:8000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  # Uncomment to run Postgres locally (see DATABASE_URL note above).
+  # db:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: football
+  #     POSTGRES_PASSWORD: football
+  #     POSTGRES_DB: football
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+
+# volumes:
+#   pgdata:
