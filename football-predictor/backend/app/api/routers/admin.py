@@ -64,6 +64,7 @@ def _provider_out(p: Provider) -> ProviderOut:
         has_key=bool(p.encrypted_api_key),
         active=p.active,
         priority=p.priority,
+        weight=p.weight,
     )
 
 
@@ -87,6 +88,7 @@ def create_provider(
         encrypted_api_key=encrypt_secret(body.api_key) if body.api_key else None,
         active=body.active,
         priority=body.priority,
+        weight=body.weight,
     )
     db.add(p)
     db.commit()
@@ -120,6 +122,8 @@ def update_provider(
         p.active = body.active
     if body.priority is not None:
         p.priority = body.priority
+    if body.weight is not None:
+        p.weight = body.weight
     db.commit()
     db.refresh(p)
     return _provider_out(p)
@@ -181,6 +185,18 @@ def delete_league(
         raise HTTPException(404, "League not found.")
     db.delete(lg)
     db.commit()
+
+
+# --------------------------------------------------------------------------- #
+# Backtest maintenance
+# --------------------------------------------------------------------------- #
+@router.post("/backtest/run")
+def trigger_auto_backtest(_: str = Depends(require_admin)):
+    """Manually run the pending-gameweek replay sweep (also runs on a timer)."""
+    from app.services.auto_backtest import run_pending_backtests
+
+    report = run_pending_backtests()
+    return {"replayed": report, "count": len(report)}
 
 
 # --------------------------------------------------------------------------- #

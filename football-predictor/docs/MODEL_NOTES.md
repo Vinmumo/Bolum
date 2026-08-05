@@ -159,12 +159,25 @@ are how you tell which.
 | `MAX_GOALS` | `poisson_model.py` | score-matrix truncation |
 | xG clamp `[0.1, 6.0]` | `expected_goals` | guards against bad data |
 
-## Known limitations / future ideas
+## Dixon-Coles correction (implemented)
 
-- **Independence assumption.** Real scores are mildly correlated (low-scoring
-  draws are slightly more common than independent Poisson predicts). A
-  Dixon-Coles low-score correction (a τ adjustment on the 0-0/1-0/0-1/1-1 cells)
-  is the natural next step.
+Independent Poisson underestimates 0-0/1-1 and overestimates 1-0/0-1. The τ
+adjustment in `score_matrix` fixes exactly those four cells, controlled by
+`DIXON_COLES_RHO` (default **-0.10**; typical fitted values for top leagues are
+-0.05..-0.15). Negative ρ boosts the low draws. Pass `rho=0.0` for plain
+Poisson (the backtest engine uses the default, so replays measure the corrected
+model). If backtests ever suggest the draw boost is too strong/weak, tune ρ —
+that's the knob.
+
+## Consensus weights
+
+`Provider.weight` (admin-settable) sets each source's say in the weighted xG
+mean (`aggregator._consensus`). 1.0 everywhere = plain average. The intended
+loop: let backtests/predictions accumulate, see which source tracks reality
+better, bump its weight. Auto-derived weights (e.g. inverse Brier) can slot into
+the same field later.
+
+## Known limitations / future ideas
 - **No opponent-adjusted recent form / xG-based inputs.** We use goals, not shot
   xG. If the provider exposes xG, feed that instead of goals for sharper numbers.
 - **Static league baseline.** Per-league baselines (or the standings-derived

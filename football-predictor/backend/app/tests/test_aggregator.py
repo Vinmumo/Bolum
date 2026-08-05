@@ -92,3 +92,13 @@ def test_failing_provider_is_skipped_not_fatal():
 def test_all_providers_failing_raises():
     with pytest.raises(ProviderError):
         _predict([("bad", _BrokenProvider(gf_home=45))])
+
+
+def test_weighted_consensus_leans_toward_heavier_source():
+    low = _FakeProvider(gf_home=30)
+    high = _FakeProvider(gf_home=60)
+    equal = _predict([("low", low, 1.0), ("high", high, 1.0)])
+    heavy_high = _predict([("low", low, 1.0), ("high", high, 3.0)])
+    assert heavy_high["consensus"]["xg_home"] > equal["consensus"]["xg_home"]
+    # weights surface in the sources payload
+    assert heavy_high["sources"][1]["weight"] == 3.0

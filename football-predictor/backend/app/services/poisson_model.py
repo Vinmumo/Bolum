@@ -183,10 +183,40 @@ def poisson_pmf(k: int, lam: float) -> float:
     return math.exp(-lam) * lam**k / math.factorial(k)
 
 
-def score_matrix(xg_home: float, xg_away: float, max_goals: int = MAX_GOALS) -> list[list[float]]:
+# Dixon-Coles low-score correlation. Independent Poisson systematically
+# underestimates 0-0 / 1-1 and overestimates 1-0 / 0-1; the tau adjustment
+# fixes exactly those four cells. rho < 0 boosts the draws. Typical fitted
+# values for top leagues sit around -0.05..-0.15; we default to a conservative
+# -0.10 rather than fitting per-league. See docs/MODEL_NOTES.md.
+DIXON_COLES_RHO = -0.10
+
+
+def _dc_tau(i: int, j: int, lam: float, mu: float, rho: float) -> float:
+    if i == 0 and j == 0:
+        return 1.0 - lam * mu * rho
+    if i == 0 and j == 1:
+        return 1.0 + lam * rho
+    if i == 1 and j == 0:
+        return 1.0 + mu * rho
+    if i == 1 and j == 1:
+        return 1.0 - rho
+    return 1.0
+
+
+def score_matrix(
+    xg_home: float,
+    xg_away: float,
+    max_goals: int = MAX_GOALS,
+    rho: float = DIXON_COLES_RHO,
+) -> list[list[float]]:
     home_probs = [poisson_pmf(i, xg_home) for i in range(max_goals + 1)]
     away_probs = [poisson_pmf(j, xg_away) for j in range(max_goals + 1)]
-    return [[hp * ap for ap in away_probs] for hp in home_probs]
+    matrix = [[hp * ap for ap in away_probs] for hp in home_probs]
+    if rho:
+        for i in (0, 1):
+            for j in (0, 1):
+                matrix[i][j] *= max(0.0, _dc_tau(i, j, xg_home, xg_away, rho))
+    return matrix
 
 
 # Goal lines the model reports over/under probabilities for.

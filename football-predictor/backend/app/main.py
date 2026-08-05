@@ -4,6 +4,7 @@ Run:  uvicorn app.main:app --reload   (from the backend/ directory)
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -26,8 +27,15 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         seed_defaults(db)
+    task = None
+    if settings.auto_backtest_enabled:
+        from app.services.auto_backtest import auto_backtest_loop
+
+        task = asyncio.create_task(auto_backtest_loop())
     logger.info("Startup complete (env=%s).", settings.environment)
     yield
+    if task is not None:
+        task.cancel()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
