@@ -85,7 +85,7 @@ class ProviderRegistry:
         makes no sense — this is the "primary" provider.
         """
         row = self.db.execute(
-            select(Provider).where(Provider.active.is_(True)).order_by(Provider.id)
+            select(Provider).where(Provider.active.is_(True)).order_by(Provider.priority, Provider.id)
         ).scalars().first()
         if row is None:
             raise ProviderError(
@@ -100,7 +100,7 @@ class ProviderRegistry:
         (consensus). Raises if none are enabled.
         """
         rows = self.db.execute(
-            select(Provider).where(Provider.active.is_(True)).order_by(Provider.id)
+            select(Provider).where(Provider.active.is_(True)).order_by(Provider.priority, Provider.id)
         ).scalars().all()
         if not rows:
             raise ProviderError(

@@ -41,12 +41,22 @@ app.add_middleware(
 )
 
 # Routers
-from app.api.routers import admin, fixtures, leagues, predictions, teams  # noqa: E402
+from app.api.routers import (  # noqa: E402
+    admin,
+    backtest,
+    fixtures,
+    leagues,
+    odds,
+    predictions,
+    teams,
+)
 
 app.include_router(predictions.router)
 app.include_router(fixtures.router)
 app.include_router(leagues.router)
 app.include_router(teams.router)
+app.include_router(backtest.router)
+app.include_router(odds.router)
 app.include_router(admin.router)
 
 

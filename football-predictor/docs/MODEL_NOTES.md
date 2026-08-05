@@ -120,6 +120,35 @@ actual results, score each provider (e.g. Brier score / log-loss on 1X2), and us
 those as weights in `_consensus`. That needs a results-fetch + scoring job; the
 averaging seam is already in one place to make it a small change.
 
+## Backtesting (gameweek replay)
+
+`services/backtest.py` answers "what would Bolum have predicted at the time?"
+for past gameweeks, honestly:
+
+- Inputs are **point-in-time standings** — football-data.org's
+  `standings?season=X&matchday=N` returns the table (with HOME/AWAY splits) as it
+  stood after matchday N, so a replay of matchday N uses N−1's table. Matchday 1
+  uses the previous season's final table. No hindsight leaks in.
+- **No form/H2H nudges** in replays — historical snapshots don't carry reliable
+  form, and mixing partly-known inputs would blur what's measured. It's the pure
+  Poisson engine vs reality.
+- Scoring is O/U-focused (user priority): per goal line (1.5/2.5/3.5) the pick is
+  over iff P(over) > 0.5; a hit means the pick matched the actual total. The
+  summary also reports **calibration buckets** (50–60%, 60–70%, 70%+): a healthy
+  model's 60–70%-confidence picks should land ~60–70% of the time. 1X2 is
+  recorded as a bonus.
+- Results persist in `backtest_results`; the season summary aggregates stored
+  rows with zero API calls. One standings call covers a whole gameweek (10
+  fixtures), so a full 38-gameweek season is only ~40 throttled calls once.
+
+## Market comparison (The Odds API)
+
+When `THE_ODDS_API_KEY` is set, `services/odds.py` fetches bookmaker totals lines
+and the UI shows model-vs-market: the bookies' margin-free implied P(over)
+(`(1/o) / (1/o + 1/u)`, averaged across books) next to the model's. A persistent
+gap ("edge") either marks model naivety or market value — the backtest hit rates
+are how you tell which.
+
 ## Tuning knobs
 
 | Knob | Where | Effect |
