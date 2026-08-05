@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -36,6 +36,10 @@ class Provider(Base):
     # Lower = preferred. The lowest-priority active provider serves fixtures /
     # the calendar; ALL active providers feed the prediction consensus.
     priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+
+    # Consensus weight (relative). 1.0 = equal say. Raise for sources that
+    # backtest better; the weighted mean of expected goals uses these.
+    weight: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

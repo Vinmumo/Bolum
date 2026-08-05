@@ -35,7 +35,10 @@ def predict_fixture_consensus(
     sources: list[dict] = []
     failed: list[dict] = []
 
-    for name, provider in providers:
+    for entry in providers:
+        # (name, provider) or (name, provider, weight) — weight defaults to 1.0
+        name, provider = entry[0], entry[1]
+        weight = entry[2] if len(entry) > 2 else 1.0
         try:
             payload = predict_fixture(
                 provider,
@@ -50,6 +53,7 @@ def predict_fixture_consensus(
             sources.append(
                 {
                     "provider": name,
+                    "weight": weight,
                     "home_team": payload["home_team"],
                     "away_team": payload["away_team"],
                     "prediction": payload["prediction"],
@@ -79,6 +83,7 @@ def predict_fixture_consensus(
         "sources": [
             {
                 "provider": s["provider"],
+                "weight": s["weight"],
                 "prediction": s["prediction"],
                 "form": s["form"],
                 "h2h": s["h2h"],
@@ -103,10 +108,14 @@ def predict_fixture_consensus(
 
 
 def _consensus(sources: list[dict]) -> dict:
-    """Average expected goals across sources, then recompute all markets once."""
-    n = len(sources)
-    xg_home = sum(s["prediction"]["xg_home"] for s in sources) / n
-    xg_away = sum(s["prediction"]["xg_away"] for s in sources) / n
+    """Weighted average of expected goals, then recompute all markets once.
+
+    Weights come from Provider.weight (admin-settable; bump the sources that
+    backtest better). Equal weights == plain mean.
+    """
+    total_w = sum(s.get("weight", 1.0) for s in sources) or 1.0
+    xg_home = sum(s["prediction"]["xg_home"] * s.get("weight", 1.0) for s in sources) / total_w
+    xg_away = sum(s["prediction"]["xg_away"] * s.get("weight", 1.0) for s in sources) / total_w
     result = poisson_model.predict_from_xg(xg_home, xg_away)
     return result.as_dict()
 

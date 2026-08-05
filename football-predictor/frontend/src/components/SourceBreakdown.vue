@@ -18,7 +18,12 @@ const pct = (v) => `${Math.round(v * 100)}%`;
     <ul class="space-y-4">
       <li v-for="s in sources" :key="s.provider">
         <div class="mb-1.5 flex items-center justify-between gap-3">
-          <span class="truncate text-sm font-semibold">{{ s.provider }}</span>
+          <span class="flex min-w-0 items-center gap-2">
+            <span class="truncate text-sm font-semibold">{{ s.provider }}</span>
+            <span v-if="s.weight && s.weight !== 1" class="chip shrink-0 bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400">
+              ×{{ s.weight }}
+            </span>
+          </span>
           <span class="shrink-0 text-sm tabular-nums text-ink-500 dark:text-ink-400">
             xG <span class="font-bold text-win">{{ s.prediction.xg_home.toFixed(2) }}</span>
             &ndash;

@@ -50,6 +50,7 @@ class H2HOut(BaseModel):
 
 class SourcePrediction(BaseModel):
     provider: str
+    weight: float = 1.0
     prediction: PredictionCore
     form: dict
     h2h: H2HOut
