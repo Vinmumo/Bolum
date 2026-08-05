@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     api_football_key: str | None = None
     api_football_base_url: str = "https://v3.football.api-sports.io"
 
+    # ---- The Odds API (bookmaker over/under lines; optional) ----
+    the_odds_api_key: str | None = None
+
     # ---- Defaults ----
     default_league_external_id: int = 39  # Premier League on API-Football
     default_season: int = 2023

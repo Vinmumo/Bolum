@@ -33,6 +33,10 @@ class Provider(Base):
 
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Lower = preferred. The lowest-priority active provider serves fixtures /
+    # the calendar; ALL active providers feed the prediction consensus.
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

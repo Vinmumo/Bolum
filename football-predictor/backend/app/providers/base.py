@@ -76,6 +76,25 @@ class ProviderRound:
     fixture_count: int = 0
 
 
+@dataclass
+class ProviderStandingRow:
+    """One row of a league table."""
+
+    position: int
+    team_id: int
+    team_name: str
+    crest: str | None
+    played: int
+    won: int
+    draw: int
+    lost: int
+    points: int
+    goals_for: int
+    goals_against: int
+    goal_difference: int
+    form: str = ""
+
+
 # --------------------------------------------------------------------------- #
 # Errors — providers raise these; the API layer maps them to HTTP responses.
 # --------------------------------------------------------------------------- #
@@ -123,6 +142,31 @@ class FootballDataProvider(ABC):
     @abstractmethod
     def get_leagues(self) -> list[ProviderLeague]:
         """Leagues the provider knows about (for the admin league picker)."""
+
+    # ------------------------------------------------------------------ #
+    # Optional capabilities — providers override what they support.
+    # ------------------------------------------------------------------ #
+    def get_seasons(self, league_id: int) -> list[int]:
+        """Season start-years available for a league, newest first.
+
+        Optional; return [] when the provider can't enumerate seasons.
+        """
+        return []
+
+    def get_standings(self, league_id: int, season: int) -> list[ProviderStandingRow]:
+        """Final/current league table for a season. Optional."""
+        raise ProviderError(f"{self.provider_type} does not support standings.")
+
+    def get_point_in_time_stats(
+        self, league_id: int, season: int, matchday: int | None
+    ) -> dict[int, ProviderTeamStats]:
+        """Per-team stats AS THEY STOOD after `matchday` (None = full season) —
+        the backbone of honest backtesting (no hindsight). Keyed by provider
+        team id. Optional.
+        """
+        raise ProviderError(
+            f"{self.provider_type} does not support point-in-time stats."
+        )
 
     def get_rounds(self, league_id: int, season: int) -> list[ProviderRound]:
         """Gameweeks/matchdays for a league+season, ordered by date.

@@ -33,6 +33,7 @@ from app.providers.base import (
     ProviderNotFoundError,
     ProviderRateLimitError,
     ProviderRound,
+    ProviderStandingRow,
     ProviderTeam,
     ProviderTeamStats,
 )
@@ -173,11 +174,16 @@ class FootballDataOrgProvider(FootballDataProvider):
             raise ProviderNotFoundError(f"No football-data team matching '{name}'.")
         return ProviderTeam(id=best["id"], name=best["name"], logo=best.get("crest"))
 
-    def get_team_stats(self, team_id: int, season: int, league_id: int) -> ProviderTeamStats:
+    def _standings_tables(self, league_id: int, season: int, matchday: int | None = None) -> dict:
         comp = self._competition(league_id)
-        data = self._get(f"competitions/{comp}/standings", {"season": season}, self.ttl_stats)
+        params: dict = {"season": season}
+        if matchday is not None:
+            params["matchday"] = matchday
+        data = self._get(f"competitions/{comp}/standings", params, self.ttl_stats)
+        return {s.get("type"): s.get("table", []) for s in data.get("standings", [])}
 
-        tables = {s.get("type"): s.get("table", []) for s in data.get("standings", [])}
+    @staticmethod
+    def _stats_from_tables(tables: dict, team_id: int, season: int) -> ProviderTeamStats:
         home_row = _find_row(tables.get("HOME", []), team_id)
         away_row = _find_row(tables.get("AWAY", []), team_id)
         total_row = _find_row(tables.get("TOTAL", []), team_id)
@@ -185,12 +191,10 @@ class FootballDataOrgProvider(FootballDataProvider):
             raise ProviderNotFoundError(
                 f"No football-data standings row for team {team_id} (season {season})."
             )
-
         name = (total_row or home_row)["team"]["name"]
         logo = (total_row or home_row)["team"].get("crest")
         form_str = (total_row or {}).get("form") or ""
         recent_form = [c for c in form_str.replace(",", "") if c in "WDL"][-6:][::-1]
-
         return ProviderTeamStats(
             team_id=team_id,
             name=name,
@@ -203,6 +207,75 @@ class FootballDataOrgProvider(FootballDataProvider):
             goals_against_away=away_row.get("goalsAgainst", 0) or 0,
             recent_form=recent_form,
         )
+
+    def get_team_stats(self, team_id: int, season: int, league_id: int) -> ProviderTeamStats:
+        tables = self._standings_tables(league_id, season)
+        try:
+            stats = self._stats_from_tables(tables, team_id, season)
+        except ProviderNotFoundError:
+            stats = None
+        # Early-season fallback: before/just after kick-off the current season's
+        # table is empty (0 games), which would degrade predictions to league
+        # averages. Use last season's stats instead — the standard approach.
+        if stats is None or (stats.games_home + stats.games_away) == 0:
+            prev_tables = self._standings_tables(league_id, season - 1)
+            try:
+                return self._stats_from_tables(prev_tables, team_id, season - 1)
+            except ProviderNotFoundError:
+                if stats is not None:  # newly promoted team: keep the empty row
+                    return stats
+                raise
+        return stats
+
+    def get_seasons(self, league_id: int) -> list[int]:
+        """Recent season start-years, newest first (free tier reaches ~2021)."""
+        comp = self._competition(league_id)
+        data = self._get(f"competitions/{comp}", {}, self.ttl_stats)
+        years: list[int] = []
+        for s in data.get("seasons", []):
+            start = (s.get("startDate") or "")[:4]
+            if start.isdigit():
+                years.append(int(start))
+        years.sort(reverse=True)
+        return years[:6]
+
+    def get_standings(self, league_id: int, season: int) -> list[ProviderStandingRow]:
+        tables = self._standings_tables(league_id, season)
+        rows: list[ProviderStandingRow] = []
+        for r in tables.get("TOTAL", []):
+            rows.append(
+                ProviderStandingRow(
+                    position=r.get("position", 0),
+                    team_id=r["team"]["id"],
+                    team_name=r["team"].get("shortName") or r["team"]["name"],
+                    crest=r["team"].get("crest"),
+                    played=r.get("playedGames", 0) or 0,
+                    won=r.get("won", 0) or 0,
+                    draw=r.get("draw", 0) or 0,
+                    lost=r.get("lost", 0) or 0,
+                    points=r.get("points", 0) or 0,
+                    goals_for=r.get("goalsFor", 0) or 0,
+                    goals_against=r.get("goalsAgainst", 0) or 0,
+                    goal_difference=r.get("goalDifference", 0) or 0,
+                    form=(r.get("form") or "").replace(",", ""),
+                )
+            )
+        return rows
+
+    def get_point_in_time_stats(
+        self, league_id: int, season: int, matchday: int | None
+    ) -> dict[int, ProviderTeamStats]:
+        """Stats for every team as the table stood after `matchday` — one cached
+        standings call serves all fixtures of a backtested gameweek."""
+        tables = self._standings_tables(league_id, season, matchday=matchday)
+        out: dict[int, ProviderTeamStats] = {}
+        for row in tables.get("TOTAL", []):
+            tid = row["team"]["id"]
+            try:
+                out[tid] = self._stats_from_tables(tables, tid, season)
+            except ProviderNotFoundError:
+                continue
+        return out
 
     def get_h2h(self, team1_id: int, team2_id: int, limit: int = 10) -> list[ProviderH2HMatch]:
         # football-data H2H requires a specific match id; skipped for now.

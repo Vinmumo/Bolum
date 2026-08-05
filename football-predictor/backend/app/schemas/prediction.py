@@ -28,6 +28,9 @@ class PredictionCore(BaseModel):
     prob_over_2_5: float
     prob_under_2_5: float
     prob_btts: float
+    # Over probability per goal line, e.g. {"1.5": 0.78, "2.5": 0.54, "3.5": 0.31}
+    over_lines: dict[str, float] = {}
+    expected_total_goals: float = 0.0
     top_scorelines: list[Scoreline]
 
 

@@ -8,11 +8,13 @@ import ScorelineList from "../components/ScorelineList.vue";
 import StatTile from "../components/StatTile.vue";
 import ErrorState from "../components/ErrorState.vue";
 import SourceBreakdown from "../components/SourceBreakdown.vue";
+import OverUnderPanel from "../components/OverUnderPanel.vue";
 
 const route = useRoute();
 const router = useRouter();
 
 const data = ref(null);
+const odds = ref(null);
 const loading = ref(true);
 const error = ref(null);
 
@@ -28,10 +30,22 @@ async function load() {
     if (route.query.season) body.season = Number(route.query.season);
     const res = await client.post("/predictions/predict", body);
     data.value = res.data;
+    loadOdds(); // non-blocking; panel stays model-only if odds unavailable
   } catch (err) {
     error.value = toUiError(err);
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadOdds() {
+  try {
+    const params = { home: homeName.value, away: awayName.value };
+    if (route.query.league) params.league_external_id = Number(route.query.league);
+    const res = await client.get("/odds/totals", { params });
+    odds.value = res.data;
+  } catch {
+    odds.value = null; // odds are a bonus — never surface an error for them
   }
 }
 
@@ -114,17 +128,24 @@ const failed = computed(() => data.value?.meta?.providers_failed || []);
         </div>
       </div>
 
-      <!-- Market tiles -->
-      <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label="Over 2.5 goals" :value="pct(p.prob_over_2_5)" accent="brand" />
-        <StatTile label="Under 2.5 goals" :value="pct(p.prob_under_2_5)" accent="brand" />
-        <StatTile label="Both teams score" :value="pct(p.prob_btts)" accent="draw" />
-        <StatTile
-          label="Most likely"
-          :value="`${p.top_scorelines[0].home}–${p.top_scorelines[0].away}`"
-          :sub="`${pct(p.top_scorelines[0].probability)} chance`"
-          accent="win"
-        />
+      <!-- Overs/unders (multi-line, with market comparison when available) -->
+      <div class="mt-6 grid items-start gap-4 lg:grid-cols-3">
+        <div class="lg:col-span-2">
+          <OverUnderPanel
+            :over-lines="p.over_lines || { '2.5': p.prob_over_2_5 }"
+            :expected-total="p.expected_total_goals"
+            :market="odds"
+          />
+        </div>
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-1">
+          <StatTile label="Both teams score" :value="pct(p.prob_btts)" accent="draw" />
+          <StatTile
+            label="Most likely"
+            :value="`${p.top_scorelines[0].home}–${p.top_scorelines[0].away}`"
+            :sub="`${pct(p.top_scorelines[0].probability)} chance`"
+            accent="win"
+          />
+        </div>
       </div>
 
       <!-- Scorelines + H2H -->
